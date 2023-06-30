@@ -369,8 +369,4 @@ def main():
 if __name__ == "__main__":
 	"""when run, do the thing."""
 	main()
-	print("\n\n\n\nScript has completed.\nYou may now close this window, and the edge browser whenever ready.")
 	quit()
-
-"""when not run, was it imported?"""
-print('are you sure you meant to import this file?')
