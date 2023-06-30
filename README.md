@@ -47,7 +47,10 @@ Microsoft Rewards automation
 
 ## FAQ:
 ### Q: Help, I don't really understand how to use this or what I am supposed to do.
-A: Try googling the terms you are not familiar with, if that does not help answer your question, just open an issue so I can update stuff to be easier to understand. 
+A: Try googling the terms you are not familiar with, if that does not help answer your question, just open an issue so I can update stuff to be easier to understand.
+
+### Q: Y code so ugly?
+A: Quick and dirty solution, also who knows how long this will work for so ¯\\\_(ツ)\_/¯
 
 
 ## Protips:
