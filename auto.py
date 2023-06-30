@@ -17,10 +17,9 @@ from os import getcwd
 from os.path import isfile, isdir
 from datetime import datetime
 
-
+###### CONFIGS ######
 MAX_WEBDRIVER_WAIT = 100
 
-# EDGE_EXE_PATH, EDGE_PROFILE_DIR, EDGE_PROFILE_NAME - TODO: May need to change these values if you get an ValueError when running!
 EDGE_EXE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 EDGE_PROFILE_DIR = "C:\\Users\\PC\\AppData\\Local\\Microsoft\\Edge\\User Data"
 EDGE_PROFILE_NAME = "Default"
@@ -30,6 +29,7 @@ MAX_SEARCH_POINTS = {
 	'desktop':150,
 }
 POINTS_PER_SEARCH = 5
+###### CONFIGS ######
 
 class wait_for_page_load(object):
 	def __init__(self, browser, timeout = None):
@@ -199,41 +199,6 @@ def complete_task(driver:webdriver) -> bool:
 	tqdm_sleep(randint(1,5))
 	return True
 
-def get_driver(ua:str) -> webdriver:
-	"""Returns the webdriver specific for the given user agent string type
-
-	Args:
-		ua (str): The user agent string type. Valid values are "mobile", or "desktop"
-
-	Raises:
-		ValueError: if the EDGE_EXE_PATH is invalid, or the ua argument value is invalid
-
-	Returns:
-		webdriver: a webdriver
-	"""
-	USER_AGENTS = {
-		'mobile':"Mozilla/5.0 (Linux; U; Android 4.0.2; en-us; Galaxy Nexus Build/ICL53F) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
-		'desktop':"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"
-	}
-	edge_options = Options()
-	if not isfile(EDGE_EXE_PATH):
-		raise ValueError("README: You need to edit the `EDGE_EXE_PATH` variable to be the full file path for your executable edge program. Open this file in a text editor and change the value!")
-	edge_options.binary_location = EDGE_EXE_PATH
-	if not isdir(EDGE_PROFILE_DIR):
-		raise ValueError("README: You need to edit the `EDGE_EXE_PATH` variable to be the full file path for your executable edge program. Open this file in a text editor and change the value!")
-	edge_options.add_argument(f"user-data-dir={EDGE_PROFILE_DIR}")
-	# TODO: error check for profile name? idk if thats a directory or what
-	edge_options.add_argument(f"profile-directory={EDGE_PROFILE_NAME}")
-	if str(ua).strip().lower() not in USER_AGENTS:
-		raise ValueError("Invalid 'ua' value.")
-	
-	edge_options.add_argument("disable-infobars")
-	edge_options.add_argument("--disable-extensions")
-	edge_options.add_argument(f"user-agent={USER_AGENTS.get(ua,'')}")
-	edge_options.add_experimental_option("detach", True)
-	driver = webdriver.Edge(options=edge_options)
-	return driver
-
 def do_searches(driver:webdriver, max_points:int):
 	"""Attempts to do the searches that meets the given amount of points to get.
 	This is not bullet proof and might actually get run more than once if the points dont register quickly.
@@ -327,6 +292,41 @@ def quests(driver:webdriver) -> webdriver:
 	for tab in [x for x in driver.window_handles if x != og]:
 		driver.switch_to.window(tab)
 		driver.close()
+	return driver
+
+def get_driver(ua:str) -> webdriver:
+	"""Returns the webdriver specific for the given user agent string type
+
+	Args:
+		ua (str): The user agent string type. Valid values are "mobile", or "desktop"
+
+	Raises:
+		ValueError: if the EDGE_EXE_PATH is invalid, or the ua argument value is invalid
+
+	Returns:
+		webdriver: a webdriver
+	"""
+	USER_AGENTS = {
+		'mobile':"Mozilla/5.0 (Linux; U; Android 4.0.2; en-us; Galaxy Nexus Build/ICL53F) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
+		'desktop':"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"
+	}
+	edge_options = Options()
+	if not isfile(EDGE_EXE_PATH):
+		raise ValueError("README: You need to edit the `EDGE_EXE_PATH` variable to be the full file path for your executable edge program. Open this file in a text editor and change the value!")
+	edge_options.binary_location = EDGE_EXE_PATH
+	if not isdir(EDGE_PROFILE_DIR):
+		raise ValueError("README: You need to edit the `EDGE_EXE_PATH` variable to be the full file path for your executable edge program. Open this file in a text editor and change the value!")
+	edge_options.add_argument(f"user-data-dir={EDGE_PROFILE_DIR}")
+	# TODO: error check for profile name? idk if thats a directory or what
+	edge_options.add_argument(f"profile-directory={EDGE_PROFILE_NAME}")
+	if str(ua).strip().lower() not in USER_AGENTS:
+		raise ValueError("Invalid 'ua' value.")
+	
+	edge_options.add_argument("disable-infobars")
+	edge_options.add_argument("--disable-extensions")
+	edge_options.add_argument(f"user-agent={USER_AGENTS.get(ua,'')}")
+	edge_options.add_experimental_option("detach", True)
+	driver = webdriver.Edge(options=edge_options)
 	return driver
 
 def log_current_points(driver:webdriver):
