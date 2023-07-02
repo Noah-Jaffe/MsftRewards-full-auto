@@ -1,17 +1,8 @@
-from selenium import webdriver
-from selenium.webdriver.edge.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
+# These imports happen before log is setup because they should always work. 
+# If they dont, leave it up to the user to figure out.
+import traceback
 
-try:
-	import tqdm
-except ImportError:
-	print("TQDM not installed, simple timer will be used")
-
-import logging
-from traceback import print_exc
+import sys
 from random import choice, randint
 from time import time, sleep
 
@@ -19,11 +10,12 @@ from os import getcwd, getlogin
 from os.path import isfile, isdir
 from datetime import datetime
 
+
 ###### CONFIGS ######
 MAX_WEBDRIVER_WAIT = 100
 
-EDGE_EXE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-EDGE_PROFILE_DIR = f"C:\\Users\\{getlogin()}\\AppData\\Local\\Microsoft\\Edge\\User Data"
+EDGE_EXE_PATH = rf"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+EDGE_PROFILE_DIR = rf"C:\Users\{getlogin()}\AppData\Local\Microsoft\Edge\User Data"
 EDGE_PROFILE_NAME = "Default"
 
 MAX_SEARCH_POINTS = {
@@ -67,6 +59,126 @@ class wait_for_page_load(object):
 			pass
 		tqdm_sleep(randint(1,10)/2) #randomizer, anti-ban
 
+class Logger:
+	"""Custom logging solution"""
+	
+	fileset = False
+	LOG_OUT_FILE = "./last_run.log"
+	err_count = 0
+	def __new__(cls, *args):
+		"""
+		Instead of creating a new instance, it returns the object/type itself because we want to mimic fully static class.
+		"""
+		if not Logger.fileset:
+			Logger.resetLogFile()
+		return Logger
+	
+	@staticmethod
+	def resetLogFile(log_file_path:str=None):
+		"""Resets the log file contents.
+
+		Args:
+			log_file_name (str, optional): If given, will attempt to set the log file path to the given log file name value. Defaults to None.
+		"""
+		if not log_file_path:
+			f = open(Logger.LOG_OUT_FILE, 'w')
+			f.close()
+		else:
+			try:
+				f = open(log_file_path, 'w')
+				f.close()
+				Logger.LOG_OUT_FILE = log_file_path
+			except:
+				raise ValueError('invalid file path given')
+		Logger.fileset = True
+	
+	@staticmethod
+	def log(*args, **kwargs):
+		"""Logs the given value into the logfile in a standardized format.
+		Args:
+			If any args are given, it will log the values with no special key.
+			If any kwargs are given, it will log the values with the key.
+		"""
+		ts = f"{datetime.now()}"
+		s = traceback.extract_stack()[:-1]
+		s = [x.name for x in s]
+		try:
+			i = s.index('<module>')
+		except:
+			i = 0
+		s = ".".join(s[i:])
+		for arg in args:
+			try:
+				v = Logger._format_val_for_write(arg)
+			except:
+				v = f"!!!!Error converting value {arg}!!!"
+			Logger._write_to_logs(v, ts=ts, k=None)
+		for kw in kwargs:
+			try:
+				v = Logger._format_val_for_write(kwargs[kw])
+			except:
+				v = f"!!!!Error converting value for key {kw}!!!"
+			Logger._write_to_logs(v, ts=ts, k=kw)
+
+	@staticmethod
+	def _format_val_for_write(val:object):
+		"""Converts the given object into a human readable string
+		Args:
+			val (object): the value to be converted.
+		Returns:
+			list: list of human readable strings for the given value
+			or
+			str: human readable strings for the given value
+		"""
+		t = type(val)
+		if t == str:
+			return val.split("\n") if val.count("\n") > 1 else val
+		if t in {int, float}:
+			return repr(val)
+		elif t == type(None):
+			return 'null'
+		elif t in {list, tuple, set, range, frozenset}:
+			f = {list:("[","]"), tuple:("(",")"), set:("{","}"), range: ("(",")"), frozenset:("frozenset({","})")}
+			ret = f[t][0]
+			for v in val:
+				ret += Logger._format_val_for_write(Logger._format_val_for_write(v))
+				ret += ","
+			ret += f[t][1]
+			return ret
+		elif t == dict:
+			new_dict = {}
+			for k,v in dict.items():
+				new_dict[Logger._format_val_for_write(k)] = Logger._format_val_for_write(v)
+			return repr(new_dict)
+		elif isinstance(val, Exception):
+			Logger.err_count = Logger.err_count + 1
+			return ''.join(traceback.format_exception(t, val, val.__traceback__))
+		elif t in {complex, bytes, memoryview}:
+			return t.__name__ + f"(bytes({val.obj}))" if t == memoryview else f"{val}"
+		elif t == bytearray:
+			return repr(bytearray)
+		elif t.__name__ == 'type':
+			# TODO: what to do here?
+			return repr(val)
+
+	@staticmethod
+	def _write_to_logs(ts:datetime, k:str, v:object):
+		"""Actually writes the given values to the file
+
+		Args:
+			ts (datetime): timestamp to use
+			k (str): key to use
+			v (list | str): value to use.
+		"""
+		try:
+			print(ts, k, v)
+		except:
+			pass
+		with open(Logger.LOG_OUT_FILE, 'a') as f:
+			if type(v) == list:
+				for o in v:
+					f.write(f"{ts}\t{k if k else ''}\t{o}\n")
+
 def tqdm_sleep(t: float):
 	"""Sleeps with printing the remaining time to console
 	# if tqdm not installed, no worries, it will use simple sleep display
@@ -74,14 +186,14 @@ def tqdm_sleep(t: float):
 		t (float): time to sleep
 	"""
 	end_at = time() + t
+	Logger.log(f"Wait: {t}s")
 	try:
-		pbar = tqdm.tqdm(total=t, bar_format="Anti-ban sleep: {n:.5f}")
+		pbar = tqdm.tqdm(total=t, bar_format="Anti-ban sleep: {n:.5f}     ")
 		while end_at > time():
 			pbar.n = end_at - time()
 			pbar.refresh()
 		pbar.close()
 	except:
-		print(f"anti ban, sleep for: {t}")
 		while time() < end_at:
 			pass
 
@@ -236,7 +348,7 @@ def searches()->webdriver:
 		return driver
 	for mode in MAX_SEARCH_POINTS:
 		if driver:
-			print("need to restart browser")
+			Logger.log("need to restart browser")
 			driver.quit()
 			tqdm_sleep(1)
 		driver = get_driver(mode)
@@ -260,7 +372,7 @@ def tasks(driver:webdriver) -> webdriver:
 	try:
 		tasks = driver.find_elements(By.CSS_SELECTOR, ".mee-icon-AddMedium")
 	except:
-		print("uh oh, spaghetti-o, couldn't find taks to do, do this by hand or re-run?")
+		Logger.log("uh oh, spaghetti-o, couldn't find taks to do, do this by hand or re-run?")
 		tasks = []
 	for taskidx, task in enumerate(tasks, start=1):
 		prev_tabs = driver.window_handles
@@ -268,7 +380,7 @@ def tasks(driver:webdriver) -> webdriver:
 		try:
 			WebDriverWait(driver, MAX_WEBDRIVER_WAIT/5).until(EC.number_of_windows_to_be(len(prev_tabs)+1))
 			new_tab = [x for x in driver.window_handles if x not in prev_tabs]
-			print(f"task #{taskidx} opened {len(new_tab)} new tabs")
+			Logger.log(f"task #{taskidx} opened {len(new_tab)} new tabs")
 			for t in new_tab: 
 				driver.switch_to.window(t)
 				complete_task(driver)
@@ -288,7 +400,7 @@ def tasks(driver:webdriver) -> webdriver:
 	return driver
 
 def quests(driver:webdriver) -> webdriver:
-	"""_summary_
+	"""Does the quests for the day. Only one per day though as they usually are 24hr timelocked.
 
 	Args:
 		driver (webdriver): the webdriver
@@ -346,8 +458,8 @@ def get_driver(ua:str) -> webdriver:
 	try:
 		driver = webdriver.Edge(options=edge_options)
 	except Exception as e:
-		print(e)
-		print("issue occurred while attempting to open the driver! rerun the program?")
+		Logger.log(e)
+		Logger.log("issue occurred while attempting to open the driver! rerun the program?")
 	return driver
 
 def log_current_points(driver:webdriver):
@@ -363,10 +475,10 @@ def log_current_points(driver:webdriver):
 		val = driver.find_element(By.CSS_SELECTOR, '.pointsValue').text
 		ts = f"{datetime.now}"
 		outf = getcwd()+"\\"+"point_logs.txt"
-		print(f"as of {ts} you have {val} points!")
+		Logger.log(f"as of {ts} you have {val} points!")
 		with open(outf, 'a') as f:
 			f.write(f"{ts}\t{val}")
-			print(f"See {outf} for historical point values")
+			Logger.log(f"See {outf} for historical point values")
 	except:
 		pass
 	
@@ -389,25 +501,47 @@ def main():
 	log_current_points(driver)
 	with wait_for_page_load(driver):
 		driver.get('https://rewards.bing.com/pointsbreakdown')
-	print("COMPLETED!\nThe script has completed, please do a quick visual check on the rewards page to make sure it worked.\nYou may now close this window and the browser!")
+	Logger.log("COMPLETED!\nThe script has completed, please do a quick visual check on the rewards page to make sure it worked.\nYou may now close this window and the browser!")
+	if Logger.err_count > 0:
+		Logger.log(f"If the program did not work properly, feel free to share the {Logger.LOG_OUT_FILE} file with the script's author so that they can attempt to diagnose the issue.")
+
+def check_for_updates():
+	"""Checks for updates against the src code via software solution.
+	You can delete/disable this function if you know how to git.
+	DOES NOT IMPLEMENT UPDATES, REQUIRES USER TO UPDATE THEMSELEVES FOR SECURITY PURPOSES!
+	"""
+	import requests
+	SRC_URL = 'https://raw.githubusercontent.com/Noah-Jaffe/MsftRewards-full-auto/main/auto.py'
+	try:
+		latest_src_code = requests.get(SRC_URL).content
+		with open(f"{getcwd()}\\{__file__}",'r') as f:
+			if latest_src_code != f.read():
+				Logger.log("ATTENTION! The script might have been updated! Please verify with the script's author if you should be using the new version.")
+	except:
+		Logger.log('Unable to check for script updates, try again later.')
 
 if __name__ == "__main__":
 	"""when run, do the thing."""
-	import logging
-	logger = logging.getLogger('scope.name')
-	file_log_handler = logging.FileHandler('logfile.log')
-	logger.addHandler(file_log_handler)
-	stderr_log_handler = logging.StreamHandler()
-	logger.addHandler(stderr_log_handler)
-
-	# nice output format
-	formatter = logging.Formatter('%(asctime)s\t%(name)s\t%(levelname)s\t""%(message)s""')
-	file_log_handler.setFormatter(formatter)
-	stderr_log_handler.setFormatter(formatter)
+	# Start logging
+	Logger.resetLogFile()
+	# Add exception tracker
+	sys.excepthook = lambda exctype, value, tb: Logger.log(''.join(traceback.format_exception(exctype, value, tb.__traceback__)))
+	
+	# Import the 3rd party packages
+	from selenium import webdriver
+	from selenium.webdriver.edge.options import Options
+	from selenium.webdriver.common.by import By
+	from selenium.webdriver.support import expected_conditions as EC
+	from selenium.webdriver.support.ui import WebDriverWait
+	from selenium.common.exceptions import TimeoutException
 
 	try:
-		main()
-	except Exception as e:
-		traceback.print_exc()
-		
+		import tqdm
+	except ImportError:
+		Logger.log(warning="TQDM not installed, simple timer will be used")
+
+	
+	
+	check_for_updates()
+	main()
 	quit()
