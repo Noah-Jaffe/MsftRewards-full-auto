@@ -501,7 +501,7 @@ def log_current_points(driver:'webdriver'):
 		driver.get('https://rewards.bing.com/')
 	try:
 		val = driver.find_element(By.CSS_SELECTOR, '.pointsValue').text
-		ts = f"{datetime.now}"
+		ts = f"{datetime.now()}"
 		outf = getcwd()+"\\"+"point_logs.txt"
 		Logger.log(f"as of {ts} you have {val} points!")
 		with open(outf, 'a') as f:
