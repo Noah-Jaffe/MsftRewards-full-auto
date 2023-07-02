@@ -102,23 +102,19 @@ class Logger:
 		ts = f"{datetime.now()}"
 		s = traceback.extract_stack()[:-1]
 		s = [x.name for x in s]
-		try:
-			i = s.index('<module>')
-		except:
-			i = 0
-		s = ".".join(s[i:])
+		s = ".".join(s[max([i for i,x in enumerate(s) if x == "<module>" or i == 0]):])
 		for arg in args:
 			try:
 				v = Logger._format_val_for_write(arg)
 			except:
 				v = f"!!!!Error converting value {arg}!!!"
-			Logger._write_to_logs(v, ts=ts, k=None)
+			Logger._write_to_logs(ts=ts, k=None, v=v)
 		for kw in kwargs:
 			try:
 				v = Logger._format_val_for_write(kwargs[kw])
 			except:
 				v = f"!!!!Error converting value for key {kw}!!!"
-			Logger._write_to_logs(v, ts=ts, k=kw)
+			Logger._write_to_logs(ts=ts, k=kw, v=v)
 
 	@staticmethod
 	def _format_val_for_write(val:object):
@@ -197,7 +193,7 @@ def tqdm_sleep(t: float):
 		while time() < end_at:
 			pass
 
-def do_quest(driver:webdriver):
+def do_quest(driver:'webdriver'):
 	"""Prerequisite: page is on a quest.
 	Clicks on the next available task for the quest
 
@@ -207,7 +203,7 @@ def do_quest(driver:webdriver):
 	with wait_for_page_load(driver):
 		driver.execute_script("document.querySelector('.punchcard-row').querySelector('a').click()")
 
-def poll(driver:webdriver) -> bool:
+def poll(driver:'webdriver') -> bool:
 	"""
 	If the loaded page has a poll, do the poll.
 	Args:
@@ -227,7 +223,7 @@ def poll(driver:webdriver) -> bool:
 		return False
 	return False
 
-def select_x_of_y_overlay(driver:webdriver) -> bool:
+def select_x_of_y_overlay(driver:'webdriver') -> bool:
 	"""
 	If the loaded page has a multiple choice or multi-select overlay option, do it until completed.
 	Args:
@@ -259,7 +255,7 @@ def select_x_of_y_overlay(driver:webdriver) -> bool:
 				pass
 	return True
 
-def multiple_choice_inpage(driver:webdriver) -> bool:
+def multiple_choice_inpage(driver:'webdriver') -> bool:
 	"""
 	If the loaded page has an in-page (not overlay) multiple choice question, do it until completed.
 	Args:
@@ -291,7 +287,7 @@ def multiple_choice_inpage(driver:webdriver) -> bool:
 		opts = driver.find_elements(By.CSS_SELECTOR, "div.wk_OptionClickClass")
 	return True
 
-def complete_task(driver:webdriver) -> bool:
+def complete_task(driver:'webdriver') -> bool:
 	"""Attempts to complete the task that was opened in a new tab.
 
 	Args:
@@ -315,7 +311,7 @@ def complete_task(driver:webdriver) -> bool:
 	tqdm_sleep(randint(1,5))
 	return True
 
-def do_searches(driver:webdriver, max_points:int):
+def do_searches(driver:'webdriver', max_points:int):
 	"""Attempts to do the searches that meets the given amount of points to get.
 	This is not bullet proof and might actually get run more than once if the points dont register quickly.
 
@@ -329,7 +325,7 @@ def do_searches(driver:webdriver, max_points:int):
 			# to ensure a unique search is done, we just search the current timestamp
 			driver.get(f"https://bing.com/search?q={time()}")
 
-def searches()->webdriver:
+def searches()->'webdriver':
 	"""
 	If you havent met the max search points for the day, will do the searches.
 	Gets the proper browser with specific user agent (desktop or mobile) and does the searches.
@@ -355,7 +351,7 @@ def searches()->webdriver:
 		do_searches(driver, MAX_SEARCH_POINTS[mode])
 	return driver
 
-def tasks(driver:webdriver) -> webdriver:
+def tasks(driver:'webdriver') -> 'webdriver':
 	"""
 	Attempts to do all of the available tasks, including daily.
 	
@@ -399,7 +395,7 @@ def tasks(driver:webdriver) -> webdriver:
 		driver.switch_to.window(og)
 	return driver
 
-def quests(driver:webdriver) -> webdriver:
+def quests(driver:'webdriver') -> 'webdriver':
 	"""Does the quests for the day. Only one per day though as they usually are 24hr timelocked.
 
 	Args:
@@ -423,7 +419,7 @@ def quests(driver:webdriver) -> webdriver:
 		driver.close()
 	return driver
 
-def get_driver(ua:str) -> webdriver:
+def get_driver(ua:str) -> 'webdriver':
 	"""Returns the webdriver specific for the given user agent string type
 
 	Args:
@@ -462,7 +458,7 @@ def get_driver(ua:str) -> webdriver:
 		Logger.log("issue occurred while attempting to open the driver! rerun the program?")
 	return driver
 
-def log_current_points(driver:webdriver):
+def log_current_points(driver:'webdriver'):
 	"""Logs todays date and the current points into a file so you can keep track. 
 	also remnants of self-checking so it would only run once a day. can be disabled with no consequences.
 
@@ -514,7 +510,7 @@ def check_for_updates():
 	SRC_URL = 'https://raw.githubusercontent.com/Noah-Jaffe/MsftRewards-full-auto/main/auto.py'
 	try:
 		latest_src_code = requests.get(SRC_URL).content
-		with open(f"{getcwd()}\\{__file__}",'r') as f:
+		with open(__file__,'r') as f:
 			if latest_src_code != f.read():
 				Logger.log("ATTENTION! The script might have been updated! Please verify with the script's author if you should be using the new version.")
 	except:
@@ -540,8 +536,7 @@ if __name__ == "__main__":
 	except ImportError:
 		Logger.log(warning="TQDM not installed, simple timer will be used")
 
-	
-	
-	check_for_updates()
 	main()
+	# check for updates after otherwise user likely to not see the notification text
+	check_for_updates()
 	quit()
