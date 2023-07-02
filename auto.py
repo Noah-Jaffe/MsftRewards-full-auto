@@ -10,10 +10,12 @@ try:
 except ImportError:
 	print("TQDM not installed, simple timer will be used")
 
+import logging
+from traceback import print_exc
 from random import choice, randint
 from time import time, sleep
 
-from os import getcwd
+from os import getcwd, getlogin
 from os.path import isfile, isdir
 from datetime import datetime
 
@@ -21,7 +23,7 @@ from datetime import datetime
 MAX_WEBDRIVER_WAIT = 100
 
 EDGE_EXE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-EDGE_PROFILE_DIR = "C:\\Users\\PC\\AppData\\Local\\Microsoft\\Edge\\User Data"
+EDGE_PROFILE_DIR = f"C:\\Users\\{getlogin()}\\AppData\\Local\\Microsoft\\Edge\\User Data"
 EDGE_PROFILE_NAME = "Default"
 
 MAX_SEARCH_POINTS = {
@@ -189,7 +191,9 @@ def complete_task(driver:webdriver) -> bool:
 	if not driver.current_url.lower().strip().startswith("https://www.bing.com/search?"):
 		# if the webpage isnt a search type, its probably nothing left to do
 		return True
-	# attempt to run each type of task completion on it
+	# attempt to run each type of task completion on it. 
+	# sometimes the overlay is slow to load so give it an extra 2.5 seconds
+	tqdm_sleep(2.5)
 	task_completion_types = [multiple_choice_inpage, select_x_of_y_overlay, poll]
 	for task_completion_func in task_completion_types:
 		if task_completion_func(driver):
@@ -224,13 +228,17 @@ def searches()->webdriver:
 	driver = get_driver('desktop')
 	with wait_for_page_load(driver):
 		driver.get('https://rewards.bing.com/pointsbreakdown')
-	needs_search = any([len(set([int(x) for x in p.text.split(' / ')]))>1 for p in driver.find_elements(By.CSS_SELECTOR, 'p.pointsDetail.c-subheading-3.ng-binding')])
+	try:
+		needs_search = any([len(set([int(x) for x in p.text.split(' / ')]))>1 for p in driver.find_elements(By.CSS_SELECTOR, 'p.pointsDetail.c-subheading-3.ng-binding')])
+	except:
+		needs_search = True
 	if not needs_search:
 		return driver
 	for mode in MAX_SEARCH_POINTS:
 		if driver:
+			print("need to restart browser")
 			driver.quit()
-			sleep(1)
+			tqdm_sleep(1)
 		driver = get_driver(mode)
 		do_searches(driver, MAX_SEARCH_POINTS[mode])
 	return driver
@@ -249,23 +257,32 @@ def tasks(driver:webdriver) -> webdriver:
 		driver.get('https://rewards.bing.com/')
 	og = driver.current_window_handle
 	# one task at a time so it dosent combine
-	tasks = driver.find_elements(By.CSS_SELECTOR, ".mee-icon-AddMedium")
-	for task in tasks:
+	try:
+		tasks = driver.find_elements(By.CSS_SELECTOR, ".mee-icon-AddMedium")
+	except:
+		print("uh oh, spaghetti-o, couldn't find taks to do, do this by hand or re-run?")
+		tasks = []
+	for taskidx, task in enumerate(tasks, start=1):
 		prev_tabs = driver.window_handles
 		WebDriverWait(driver, MAX_WEBDRIVER_WAIT).until(EC.element_to_be_clickable(task)).click()
 		try:
 			WebDriverWait(driver, MAX_WEBDRIVER_WAIT/5).until(EC.number_of_windows_to_be(len(prev_tabs)+1))
 			new_tab = [x for x in driver.window_handles if x not in prev_tabs]
-			assert len(new_tab) == 1
-			driver.switch_to.window(new_tab[0])
-			complete_task(driver)
-			driver.close()
+			print(f"task #{taskidx} opened {len(new_tab)} new tabs")
+			for t in new_tab: 
+				driver.switch_to.window(t)
+				complete_task(driver)
+				driver.close()
 		except TimeoutException:
 			try:
 				# MAYBE ITS NOT A NEW TAB KIND OF TASK BUT RATHER A POPUP THINGY, IF SO JUST CLICK X AND CONTINUE
 				WebDriverWait(driver, MAX_WEBDRIVER_WAIT/5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.c-glyph.glyph-cancel"))).click()
 			except:
 				pass
+		for t in [x for x in driver.window_handles if x not in prev_tabs]:
+			tqdm_sleep(1)
+			driver.switch_to_window(t)
+			driver.close()
 		WebDriverWait(driver, 60).until(EC.number_of_windows_to_be(len(prev_tabs)))
 		driver.switch_to.window(og)
 	return driver
@@ -315,7 +332,7 @@ def get_driver(ua:str) -> webdriver:
 		raise ValueError("README: You need to edit the `EDGE_EXE_PATH` variable to be the full file path for your executable edge program. Open this file in a text editor and change the value!")
 	edge_options.binary_location = EDGE_EXE_PATH
 	if not isdir(EDGE_PROFILE_DIR):
-		raise ValueError("README: You need to edit the `EDGE_EXE_PATH` variable to be the full file path for your executable edge program. Open this file in a text editor and change the value!")
+		raise ValueError("README: You need to edit the `EDGE_PROFILE_PATH` variable to be the full file path for your executable edge program. Open this file in a text editor and change the value!")
 	edge_options.add_argument(f"user-data-dir={EDGE_PROFILE_DIR}")
 	# TODO: error check for profile name? idk if thats a directory or what
 	edge_options.add_argument(f"profile-directory={EDGE_PROFILE_NAME}")
@@ -326,7 +343,11 @@ def get_driver(ua:str) -> webdriver:
 	edge_options.add_argument("--disable-extensions")
 	edge_options.add_argument(f"user-agent={USER_AGENTS.get(ua,'')}")
 	edge_options.add_experimental_option("detach", True)
-	driver = webdriver.Edge(options=edge_options)
+	try:
+		driver = webdriver.Edge(options=edge_options)
+	except Exception as e:
+		print(e)
+		print("issue occurred while attempting to open the driver! rerun the program?")
 	return driver
 
 def log_current_points(driver:webdriver):
@@ -340,10 +361,12 @@ def log_current_points(driver:webdriver):
 		driver.get('https://rewards.bing.com/')
 	try:
 		val = driver.find_element(By.CSS_SELECTOR, '.pointsValue').text
-		line = f"{datetime.now()}\t{val}\n"
-		print(line)
-		with open(getcwd()+"\\"+"point_logs.txt",'a') as f:
-			f.write(line)
+		ts = f"{datetime.now}"
+		outf = getcwd()+"\\"+"point_logs.txt"
+		print(f"as of {ts} you have {val} points!")
+		with open(outf, 'a') as f:
+			f.write(f"{ts}\t{val}")
+			print(f"See {outf} for historical point values")
 	except:
 		pass
 	
@@ -359,14 +382,32 @@ def main():
 	driver = searches()
 	driver = tasks(driver)
 	driver = quests(driver)
-	while len(driver.window_handles) > 1:
-		pass
+	#while len(driver.window_handles) > 1:
+	#	pass
+	tqdm_sleep(3)
 	driver.switch_to.window(driver.window_handles[0])
 	log_current_points(driver)
 	with wait_for_page_load(driver):
 		driver.get('https://rewards.bing.com/pointsbreakdown')
+	print("COMPLETED!\nThe script has completed, please do a quick visual check on the rewards page to make sure it worked.\nYou may now close this window and the browser!")
 
 if __name__ == "__main__":
 	"""when run, do the thing."""
-	main()
+	import logging
+	logger = logging.getLogger('scope.name')
+	file_log_handler = logging.FileHandler('logfile.log')
+	logger.addHandler(file_log_handler)
+	stderr_log_handler = logging.StreamHandler()
+	logger.addHandler(stderr_log_handler)
+
+	# nice output format
+	formatter = logging.Formatter('%(asctime)s\t%(name)s\t%(levelname)s\t""%(message)s""')
+	file_log_handler.setFormatter(formatter)
+	stderr_log_handler.setFormatter(formatter)
+
+	try:
+		main()
+	except Exception as e:
+		traceback.print_exc()
+		
 	quit()
