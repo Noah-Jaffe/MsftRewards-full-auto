@@ -261,10 +261,18 @@ def select_x_of_y_overlay(driver:'webdriver') -> bool:
 	while not is_done:
 		with wait_for_page_load(driver):
 			try:
-				WebDriverWait(driver, 5).until(EC.element_to_be_clickable(By.CSS_SELECTOR, 'input.rqOption'))
+				WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input.rqOption')))
 				driver.execute_script("Array.from(document.querySelectorAll('input.rqOption')).filter(e=>!e.classList.contains('optionDisable'))[0].click()")
 			except:
-				pass
+				try:
+					# maybe its this or that?
+					WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, '.btOptionCard')))
+					selection = choice(driver.find_elements(By.CSS_SELECTOR, '.btOptionCard'))
+					Logger.log("This or that! Sorry, too lazy to figure out how to get the correct answer, so do this by hand or let it run and guess!")
+					selection.click()
+				except:
+					# nope
+					pass
 			sleep(2)
 			try:
 				is_done = driver.find_element(By.CSS_SELECTOR, 'div.cico.rqSumryLogo').find_element(By.CSS_SELECTOR, 'img[alt="Checkmark Image"]')
