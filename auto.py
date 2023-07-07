@@ -552,7 +552,7 @@ def log_current_points(data:dict):
 		ts = f"{datetime.now()}"
 		outf = getcwd()+"\\"+"point_logs.txt"
 		with open(outf, 'a') as f:
-			f.write(f"{ts}\t{data['point info']['current points']}")
+			f.write(f"{ts}\t{data['point info']['current points']}\n")
 			Logger.log(f"See {outf} for historical point values")
 	except:
 		Logger.log(f"Failed to log points into the point_logs file.")
