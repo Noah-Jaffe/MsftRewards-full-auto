@@ -9,7 +9,7 @@ from time import time, sleep
 from os import getcwd, getlogin
 from os.path import isfile, isdir
 from datetime import datetime
-
+import re
 
 ###### CONFIGS ######
 MAX_WEBDRIVER_WAIT = 100
@@ -18,10 +18,6 @@ EDGE_EXE_PATH = rf"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 EDGE_PROFILE_DIR = rf"C:\Users\{getlogin()}\AppData\Local\Microsoft\Edge\User Data"
 EDGE_PROFILE_NAME = "Default"
 
-MAX_SEARCH_POINTS = {
-	'mobile':100,
-	'desktop':150,
-}
 POINTS_PER_SEARCH = 5
 ###### CONFIGS ######
 
@@ -108,13 +104,13 @@ class Logger:
 				v = Logger._format_val_for_write(arg)
 			except:
 				v = f"!!!!Error converting value {arg}!!!"
-			Logger._write_to_logs(ts=ts, k=None, v=v)
+			Logger._write_to_logs(ts=ts, s=s, k=None, v=v)
 		for kw in kwargs:
 			try:
 				v = Logger._format_val_for_write(kwargs[kw])
 			except:
 				v = f"!!!!Error converting value for key {kw}!!!"
-			Logger._write_to_logs(ts=ts, k=kw, v=v)
+			Logger._write_to_logs(ts=ts, s=s, k=kw, v=v)
 
 	@staticmethod
 	def _format_val_for_write(val:object):
@@ -129,7 +125,7 @@ class Logger:
 		t = type(val)
 		if t == str:
 			return val.split("\n") if val.count("\n") > 1 else val
-		if t in {int, float}:
+		if t in {int, float, bool}:
 			return repr(val)
 		elif t == type(None):
 			return 'null'
@@ -140,10 +136,10 @@ class Logger:
 				ret += Logger._format_val_for_write(Logger._format_val_for_write(v))
 				ret += ","
 			ret += f[t][1]
-			return ret
+			return repr(ret)
 		elif t == dict:
 			new_dict = {}
-			for k,v in dict.items():
+			for k,v in val.items():
 				new_dict[Logger._format_val_for_write(k)] = Logger._format_val_for_write(v)
 			return repr(new_dict)
 		elif isinstance(val, Exception):
@@ -158,7 +154,7 @@ class Logger:
 			return repr(val)
 
 	@staticmethod
-	def _write_to_logs(ts:datetime, k:str, v:object):
+	def _write_to_logs(ts:datetime, s:str, k:str, v:object):
 		"""Actually writes the given values to the file
 
 		Args:
@@ -173,13 +169,13 @@ class Logger:
 			pass
 		if type(v) == list:
 			for o in v:
-				print(f"{ts}\t{k if k else ''}\t{o}")
+				print(f"{ts}\t{s}\t{k if k else ''}\t{o}")
 				if f:
-					f.write(f"{ts}\t{k if k else ''}\t{o}\n")
+					f.write(f"{ts}\t{s}\t{k if k else ''}\t{o}\n")
 		else:
-			print(f"{ts}\t{k if k else ''}\t{v}")
+			print(f"{ts}\t{s}\t{k if k else ''}\t{v}")
 			if f:
-				f.write(f"{ts}\t{k if k else ''}\t{v}\n")
+				f.write(f"{ts}\t{s}\t{k if k else ''}\t{v}\n")
 		if f:
 			f.close()
 
@@ -341,55 +337,43 @@ def complete_task(driver:'webdriver') -> bool:
 	Logger.log(f"Task success? just a search: {driver.current_url}")
 	return True
 
-def do_searches(driver:'webdriver', max_points:int):
+def do_searches(webdriver_mode:str, num_searches:int):
 	"""Attempts to do the searches that meets the given amount of points to get.
 	This is not bullet proof and might actually get run more than once if the points dont register quickly.
 
 	Args:
 		driver (webdriver): webdriver
-		max_points (int): the maximum points you want to get searches for.
+		num_searches (int): the number of searches you want.
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
-	for search in range(0, max_points, POINTS_PER_SEARCH):
+	driver = get_driver(webdriver_mode)
+	tqdm_sleep(2)
+	for search in range(num_searches):
+		Logger.log(f"{search}/{num_searches}: {driver.current_url}")
 		with wait_for_page_load(driver):
 			# go to and wait for page to finish loading
 			# to ensure a unique search is done, we just search the current timestamp
 			driver.get(f"https://bing.com/search?q={time()}")
-		Logger.log(f"{search}/{max_points}: {driver.current_url}")
+		
+	driver.quit()	
 
-def searches()->'webdriver':
+def searches(searches:dict, points_per_search:int=5):
 	"""
 	If you havent met the max search points for the day, will do the searches.
 	Gets the proper browser with specific user agent (desktop or mobile) and does the searches.
 
-	Returns:
-		webdriver: the leftover webdriver (its in desktop mode)
+	Args:
+		searches: dict for searches to be done
+		points_per_search (int): points per search
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
-	driver = get_driver('desktop')
-	with wait_for_page_load(driver):
-		driver.get('https://rewards.bing.com/pointsbreakdown')
-	try:
-		# needs to sleep 1s for the point animation to load lol, idk where else i find the point values
-		tqdm_sleep(1)
-		needs_search = any([len(set([int(x) for x in p.text.split(' / ')]))>1 for p in driver.find_elements(By.CSS_SELECTOR, 'p.pointsDetail.c-subheading-3.ng-binding')])
-	except Exception as e:
-		Logger.log(e)
-		Logger.log(f"Issue calculating if searches are needed, so we are gonna do it anyways.")
-		needs_search = True
-	if not needs_search:
-		return driver
-	for mode in MAX_SEARCH_POINTS:
-		if driver:
-			Logger.log("need to restart browser")
-			driver.quit()
-			tqdm_sleep(1)
-		driver = get_driver(mode)
-		Logger.log(f'Starting searches for {mode} mode')
-		do_searches(driver, MAX_SEARCH_POINTS[mode])
-	return driver
-
-def tasks(driver:'webdriver') -> 'webdriver':
+	for mode in searches:
+		if searches[mode] > 0:
+			do_searches(webdriver_mode = mode, num_searches=int(searches[mode]/points_per_search))
+		else:
+			Logger.log(f'No searches needed for {mode}')
+	
+def tasks(driver:'webdriver'=None) -> 'webdriver':
 	"""
 	Attempts to do all of the available tasks, including daily.
 	
@@ -400,6 +384,8 @@ def tasks(driver:'webdriver') -> 'webdriver':
 		webdriver: the leftover webdriver (its in desktop mode)
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
+	if not driver:
+		driver = get_driver('desktop')
 	with wait_for_page_load(driver):
 		driver.get('https://rewards.bing.com/')
 	og = driver.current_window_handle
@@ -461,6 +447,60 @@ def quests(driver:'webdriver') -> 'webdriver':
 		driver.close()
 	return driver
 
+def get_data(driver:'webdriver'=None) -> dict:
+	"""Gets dashboard data
+	Args:
+		driver (webdriver <optional>): the webdriver	
+	Returns:
+		dict: jsonified values of the dashboard?
+	"""
+	Logger.log(inspect.currentframe().f_code.co_name)
+	Logger.log('opening driver to get status')
+	if not driver:
+		driver = get_driver('desktop')
+	with wait_for_page_load(driver):
+		driver.get('https://rewards.bing.com/')
+	tqdm_sleep(2)
+	try:
+		dashdata = driver.execute_script('return dashboard')
+	except:
+		pass
+
+	points_dat = {'availablePoints': 'current points', 'ePuid': '_ePuid', 'firstTimeGiveModeOptIn': '_firstTimeGiveModeOptIn', 'giveBalance': '_giveBalance', 'giveOrganizationName': '_giveOrganizationName', 'isGiveModeOn': 'is give mode enabled', 'isMuidTrialUser': '_isMuidTrialUser', 'isRewardsUser': '_isRewardsUser', 'lifetimeGivingPoints': 'lifetime points donated', 'lifetimePoints': 'lifetime points earned', 'lifetimePointsRedeemed': 'lifetime points redeemed'}
+	points_info = {points_dat[x]:dashdata['userStatus'][x] for x in points_dat}
+	points_info['current level'] = dashdata['userStatus']['levelInfo']['activeLevel']
+	points_info['level point progress'] = dashdata['userStatus']['levelInfo']['progress']
+	points_info['level points max progress'] = dashdata['userStatus']['levelInfo']['progressMax']
+	points_info['points per search'] = 5
+	try:
+		points_info['points per search'] = int(re.findall(r'\d+',[x for x in dashdata['userStatus']['levelInfo']['benefitsPromotion']['benefits'] if x['key'] == 'BingSearch'][0]['text'])[0])
+	except:
+		pass 
+	points_info['pc search progress'] = sum([x['pointProgress'] for x in dashdata['userStatus']['counters']['pcSearch'] if x['title'] == 'PC search'])
+	points_info['pc search max progress'] = sum([x['pointProgressMax'] for x in dashdata['userStatus']['counters']['pcSearch'] if x['title'] == 'PC search'])
+	points_info['edge bonus search progress'] = sum([x['pointProgress'] for x in dashdata['userStatus']['counters']['pcSearch'] if x['title'] == 'Microsoft Edge bonus'])
+	points_info['edge bonus search max progress'] = sum([x['pointProgressMax'] for x in dashdata['userStatus']['counters']['pcSearch'] if x['title'] == 'Microsoft Edge bonus'])
+	points_info['mobile search progress'] = sum([x['pointProgress'] for x in dashdata['userStatus']['counters']['mobileSearch'] if x['title'] == 'Mobile search'])
+	points_info['mobile search max progress'] = sum([x['pointProgressMax'] for x in dashdata['userStatus']['counters']['mobileSearch'] if x['title'] == 'Mobile search'])
+	points_info['activity quiz progress'] = sum([x['pointProgress'] for x in dashdata['userStatus']['counters']['activityAndQuiz'] if x['title'] == 'Other activities'])
+	points_info['activity quiz max progress'] = sum([x['pointProgressMax'] for x in dashdata['userStatus']['counters']['activityAndQuiz'] if x['title'] == 'Other activities'])
+	points_info['all progress'] = sum([x['pointProgress'] for x in dashdata['userStatus']['counters']['dailyPoint']])
+	points_info['all max progress'] = sum([x['pointProgressMax'] for x in dashdata['userStatus']['counters']['dailyPoint']])
+	
+	streak_dat = {'bonusPointsEarned':'total bonus points from streaks', 'lifetimeMaxValue':'longest streak', 'activityProgress':'current streak'}
+	for x in streak_dat:
+		points_info[streak_dat[x]] = dashdata['streakPromotion'][x]
+	points_info['streak completed for the day'] = True if dashdata['streakBonusPromotions'][0]['activityProgressMax'] == dashdata['streakBonusPromotions'][0]['activityProgress'] else False
+	searches_left = {
+		'mobile':100,
+		'desktop':150
+	}
+	searches_left['mobile'] = points_info['mobile search max progress'] - points_info['mobile search progress']
+	searches_left['desktop'] = max(points_info['pc search max progress'] - points_info['pc search progress'], points_info['edge bonus search max progress'] - points_info['edge bonus search progress'])
+	all_activity_quiz = dashdata['dailySetPromotions'][min(dashdata['dailySetPromotions'])] + [c for q in dashdata['punchCards'] for c in q['childPromotions']] + dashdata['morePromotions']
+
+	return driver, {'point info':points_info, 'searches':searches_left, 'activity':all_activity_quiz}
+
 def get_driver(ua:str) -> 'webdriver':
 	"""Returns the webdriver specific for the given user agent string type
 
@@ -501,7 +541,7 @@ def get_driver(ua:str) -> 'webdriver':
 		Logger.log("issue occurred while attempting to open the driver! rerun the program?")
 	return driver
 
-def log_current_points(driver:'webdriver'):
+def log_current_points(data:dict):
 	"""Logs todays date and the current points into a file so you can keep track. 
 	also remnants of self-checking so it would only run once a day. can be disabled with no consequences.
 
@@ -509,18 +549,19 @@ def log_current_points(driver:'webdriver'):
 		driver (webdriver): webdriver
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
-	with wait_for_page_load(driver):
-		driver.get('https://rewards.bing.com/')
+	
 	try:
-		val = driver.find_element(By.CSS_SELECTOR, '.pointsValue').text
 		ts = f"{datetime.now()}"
 		outf = getcwd()+"\\"+"point_logs.txt"
-		Logger.log(f"as of {ts} you have {val} points!")
 		with open(outf, 'a') as f:
-			f.write(f"{ts}\t{val}")
+			f.write(f"{ts}\t{data['point info']['current points']}")
 			Logger.log(f"See {outf} for historical point values")
 	except:
 		Logger.log(f"Failed to log points into the point_logs file.")
+	Logger.log(**data['point info'])
+	for act in data['activity']:
+		Logger.log(activity=act)
+
 	
 def main():
 	"""
@@ -532,12 +573,15 @@ def main():
 	you may close or use the webbrowser at the end with no problems.
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
-	driver = searches()
-	driver = tasks(driver)
-	driver = quests(driver)
-	tqdm_sleep(3)
-	driver.switch_to.window(driver.window_handles[0])
-	log_current_points(driver)
+	driver, data = get_data()
+	driver.quit()
+	searches(searches=data['searches'], points_per_search=data['point info']['points per search'])
+	if [x for x in data['activity'] if x['complete'] == False]:
+		driver = tasks(driver=None)
+		driver = quests(driver=driver)
+	tqdm_sleep(5)
+	driver, data = get_data(driver=driver)
+	log_current_points(data)
 	with wait_for_page_load(driver):
 		driver.get('https://rewards.bing.com/pointsbreakdown')
 	Logger.log("COMPLETED!\nThe script has completed, please do a quick visual check on the rewards page to make sure it worked.\nYou may now close this window and the browser!")
