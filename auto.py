@@ -17,8 +17,6 @@ MAX_WEBDRIVER_WAIT = 100
 EDGE_EXE_PATH = rf"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 EDGE_PROFILE_DIR = rf"C:\Users\{getlogin()}\AppData\Local\Microsoft\Edge\User Data"
 EDGE_PROFILE_NAME = "Default"
-
-POINTS_PER_SEARCH = 5
 ###### CONFIGS ######
 
 class wait_for_page_load(object):
