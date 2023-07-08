@@ -94,7 +94,7 @@ class Logger:
 			If any kwargs are given, it will log the values with the key.
 		"""
 		ts = f"{datetime.now()}"
-		s = traceback.extract_stack()[:-1]
+		s = traceback.extract_stack()[1:-1]
 		s = [x.name for x in s]
 		s = ".".join(s[max([i for i,x in enumerate(s) if x == "<module>" or i == 0]):])
 		for arg in args:
@@ -347,12 +347,13 @@ def do_searches(webdriver_mode:str, num_searches:int):
 	driver = get_driver(webdriver_mode)
 	tqdm_sleep(2)
 	for search in range(num_searches):
-		Logger.log(f"{search}/{num_searches}: {driver.current_url}")
+		Logger.log(f"{search+1}/{num_searches}: {driver.current_url}")
 		with wait_for_page_load(driver):
 			# go to and wait for page to finish loading
 			# to ensure a unique search is done, we just search the current timestamp
 			driver.get(f"https://bing.com/search?q={time()}")
-		
+		tqdm_sleep(1)
+	
 	driver.quit()	
 
 def searches(searches:dict, points_per_search:int=5):
@@ -572,14 +573,20 @@ def main():
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
 	driver, data = get_data()
-	driver.quit()
-	searches(searches=data['searches'], points_per_search=data['point info']['points per search'])
+	driver.quit()	
+	while any([data['searches'][x] > 0 for x in data['searches']]):
+		searches(searches=data['searches'], points_per_search=data['point info']['points per search'])
+		Logger.log("double checking to make sure the searches have completed")
+		driver, data = get_data()
+		driver.quit()
+		
 	if [x for x in data['activity'] if x['complete'] == False]:
 		driver = tasks(driver=None)
 		driver = quests(driver=driver)
 	tqdm_sleep(5)
 	driver, data = get_data(driver=driver)
 	log_current_points(data)
+	searches(searches=data['searches'], points_per_search=data['point info']['points per search'])
 	with wait_for_page_load(driver):
 		driver.get('https://rewards.bing.com/pointsbreakdown')
 	Logger.log("COMPLETED!\nThe script has completed, please do a quick visual check on the rewards page to make sure it worked.\nYou may now close this window and the browser!")
