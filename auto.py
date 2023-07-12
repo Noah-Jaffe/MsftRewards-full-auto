@@ -5,7 +5,7 @@ import inspect
 import sys
 from random import choice, randint
 from time import time, sleep
-
+from math import ceil
 from os import getcwd, getlogin
 from os.path import isfile, isdir
 from datetime import datetime
@@ -30,6 +30,7 @@ class wait_for_page_load(object):
 	
 	def __enter__(self):
 		try:
+			Logger.log(pre_loaded_url=self.browser.current_url)
 			self.old_page = WebDriverWait(self.browser, self.timeout).until(EC.presence_of_element_located((By.TAG_NAME, 'html')))
 		except:
 			self.old_page = None
@@ -51,6 +52,7 @@ class wait_for_page_load(object):
 				else:
 					timeout_at = time() + (self.timeout / 2)
 			pass
+		Logger.log(post_loaded_url=self.browser.current_url)
 		tqdm_sleep(randint(1,10)/2) #randomizer, anti-ban
 
 class Logger:
@@ -248,7 +250,7 @@ def select_x_of_y_overlay(driver:'webdriver') -> bool:
 	try:
 		btn = driver.find_element(By.CSS_SELECTOR, 'input[value="Start playing"]')
 		WebDriverWait(driver, 60).until(EC.element_to_be_clickable(btn)).click()
-		#btn.click()
+		
 	except:
 		return False
 	is_done = False
@@ -263,12 +265,13 @@ def select_x_of_y_overlay(driver:'webdriver') -> bool:
 					WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, '.btOptionCard')))
 					selection = choice(driver.find_elements(By.CSS_SELECTOR, '.btOptionCard'))
 					Logger.log("This or that! Sorry, too lazy to figure out how to get the correct answer, so do this by hand or let it run and guess!")
+					tqdm_sleep(2)
 					selection.click()
 				except:
 					# nope
 					pass
-			sleep(2)
 			try:
+				tqdm_sleep(4)
 				is_done = driver.find_element(By.CSS_SELECTOR, 'div.cico.rqSumryLogo').find_element(By.CSS_SELECTOR, 'img[alt="Checkmark Image"]')
 			except:
 				pass
@@ -302,7 +305,6 @@ def multiple_choice_inpage(driver:'webdriver') -> bool:
 			# click next question / get your score button
 			nxt_btn = driver.find_element(By.CSS_SELECTOR, "div.wk_button")
 			WebDriverWait(driver, 60).until(EC.element_to_be_clickable(nxt_btn)).click()
-			
 		# do we have more options?
 		opts = driver.find_elements(By.CSS_SELECTOR, "div.wk_OptionClickClass")
 	return True
@@ -328,7 +330,7 @@ def complete_task(driver:'webdriver') -> bool:
 	for task_completion_func in task_completion_types:
 		if task_completion_func(driver):
 			# on successful completion, dont need to try to do the other types, return for next task.
-			Logger.log(f"Task success: {task_completion_func.__name__}: {driver.current_url}")
+			Logger.log(task_success=f"{task_completion_func.__name__}: {driver.current_url}")
 			return True
 	# if you get here its probably just a search with nothing else to do
 	tqdm_sleep(randint(1,5))
@@ -346,12 +348,14 @@ def do_searches(webdriver_mode:str, num_searches:int):
 	Logger.log(inspect.currentframe().f_code.co_name)
 	driver = get_driver(webdriver_mode)
 	tqdm_sleep(2)
+	Logger.log(f"starting with: {driver.current_url}")
 	for search in range(num_searches):
-		Logger.log(f"{search+1}/{num_searches}: {driver.current_url}")
+		url = f"https://bing.com/search?q={time()}"
+		Logger.log(f"{search+1}/{num_searches}: {url}")
 		with wait_for_page_load(driver):
 			# go to and wait for page to finish loading
 			# to ensure a unique search is done, we just search the current timestamp
-			driver.get(f"https://bing.com/search?q={time()}")
+			driver.get(url)
 		tqdm_sleep(1)
 	
 	driver.quit()	
@@ -368,7 +372,7 @@ def searches(searches:dict, points_per_search:int=5):
 	Logger.log(inspect.currentframe().f_code.co_name)
 	for mode in searches:
 		if searches[mode] > 0:
-			do_searches(webdriver_mode = mode, num_searches=int(searches[mode]/points_per_search))
+			do_searches(webdriver_mode = mode, num_searches=int(ceil(searches[mode]/points_per_search)))
 		else:
 			Logger.log(f'No searches needed for {mode}')
 	
@@ -414,7 +418,7 @@ def tasks(driver:'webdriver'=None) -> 'webdriver':
 				pass
 		for t in [x for x in driver.window_handles if x not in prev_tabs]:
 			tqdm_sleep(1)
-			driver.switch_to_window(t)
+			driver.switch_to.window(t)
 			driver.close()
 		WebDriverWait(driver, 60).until(EC.number_of_windows_to_be(len(prev_tabs)))
 		driver.switch_to.window(og)
@@ -540,23 +544,24 @@ def get_driver(ua:str) -> 'webdriver':
 		Logger.log("issue occurred while attempting to open the driver! rerun the program?")
 	return driver
 
-def log_current_points(data:dict):
+def log_current_data(data:dict,log_points:bool=True):
 	"""Logs todays date and the current points into a file so you can keep track. 
 	also remnants of self-checking so it would only run once a day. can be disabled with no consequences.
 
 	Args:
-		driver (webdriver): webdriver
+		data (dict): the data dict to be logged
+		log_points: if we want to log the points to point_logs.txt file
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
-	
-	try:
-		ts = f"{datetime.now()}"
-		outf = getcwd()+"\\"+"point_logs.txt"
-		with open(outf, 'a') as f:
-			f.write(f"{ts}\t{data['point info']['current points']}\n")
-			Logger.log(f"See {outf} for historical point values")
-	except:
-		Logger.log(f"Failed to log points into the point_logs file.")
+	if log_points:
+		try:
+			ts = f"{datetime.now()}"
+			outf = getcwd()+"\\"+"point_logs.txt"
+			with open(outf, 'a') as f:
+				f.write(f"{ts}\t{data['point info']['current points']}\n")
+				Logger.log(f"See {outf} for historical point values")
+		except:
+			Logger.log(f"Failed to log points into the point_logs file.")
 	Logger.log(**data['point info'])
 	for act in data['activity']:
 		Logger.log(activity=act)
@@ -573,7 +578,8 @@ def main():
 	"""
 	Logger.log(inspect.currentframe().f_code.co_name)
 	driver, data = get_data()
-	driver.quit()	
+	driver.quit()
+	log_current_data(data, False)
 	while any([data['searches'][x] > 0 for x in data['searches']]):
 		searches(searches=data['searches'], points_per_search=data['point info']['points per search'])
 		Logger.log("double checking to make sure the searches have completed")
@@ -585,7 +591,7 @@ def main():
 		driver = quests(driver=driver)
 	tqdm_sleep(5)
 	driver, data = get_data(driver=driver)
-	log_current_points(data)
+	log_current_data(data, True)
 	searches(searches=data['searches'], points_per_search=data['point info']['points per search'])
 	with wait_for_page_load(driver):
 		driver.get('https://rewards.bing.com/pointsbreakdown')
