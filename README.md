@@ -41,9 +41,22 @@ Microsoft Rewards automation
 
 1. Run `auto.py`
    - `python auto.py`
-3. Wait until it prints that its done
+2. Wait until it prints that its done
    - You should be able to move or rezise the edge window while it is running without anything breaking.
-   - 
+
+## ALTERNATIVE:
+An alternative method is to use the [Simple.html](Simple.html) file, [can be viewed without need for download here](https://raw.githack.com/Noah-Jaffe/MsftRewards-full-auto/main/Simple.html). This is good to use if you cant run the python but perhaps want to do the tasks quickly from your phone.
+
+ - Instructions:
+   - **ENABLE POPUP WINDOWS WHEN ASKED, SO THAT IT CAN OPEN NEW SEARCHES IN NEW TABS!**
+   - This is a simple html file that enables you to open all of the searches for the browsers mode (desktop/mobile) with one click.
+   - Buttons:
+     - `👁👅👁` --> opens all of the searches (in new tabs, all at once) (make sure popups enabled).
+     - `1️⃣` --> opens a single search in a new tab.
+     - `💰` --> opens rewards page in new tab [https://rewards.bing.com/](https://rewards.bing.com/)
+     - `📊` --> opens points breakdown in new tab [https://rewards.bing.com/pointsbreakdown](https://rewards.bing.com/pointsbreakdown)
+   - **You will have to do the tasks by hand!**
+    
 
 
 ## FAQ:
