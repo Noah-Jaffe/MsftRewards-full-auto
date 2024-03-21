@@ -69,3 +69,5 @@ A: Quick and dirty solution, also who knows how long this will work for so ¯\\\
 
 ## Protips:
 You can create a scheduled task that runs the auto.py automatically. I reccomend some form of trigger that matches your computer usage. I reccomend once daily, or on login. 
+
+### update: this might be detectable, dont reccomend you use this on your main account 🤡
