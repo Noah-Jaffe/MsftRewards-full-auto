@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: Jaffe-Lurie Transcribble
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Noah
+    family-names: Jaffe
+    email: noah0m0jaffe@gmail.com
+  - given-names: Sivan
+    family-names: Lurie
+    email: slurie@umd.edu
+    affiliation: University of Maryland
+    orcid: 'https://orcid.org/0009-0009-7887-8562'
+repository-code: 'https://github.com/Noah-Jaffe/Transcribble'
+abstract: User friendly - offline - transcription tool.
+keywords:
+  - Transcribble
+  - Transcription
+  - Batchalign
+  - Whisper
+license: MS-PL
